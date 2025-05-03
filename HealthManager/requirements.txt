@@ -1,0 +1,11 @@
+asgiref==3.8.1
+certifi==2025.4.26
+cloudinary==1.44.0
+Django==5.1.7
+mysql==0.0.3
+mysqlclient==2.2.7
+PyMySQL==1.1.1
+six==1.17.0
+sqlparse==0.5.3
+tzdata==2025.2
+urllib3==2.4.0
