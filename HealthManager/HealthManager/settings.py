@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'healths.apps.HealthsConfig',
+    # 'ckeditor',
+    # 'ckeditor_uploader',
 ]
 
 AUTH_USER_MODEL = 'healths.User'
@@ -54,6 +56,8 @@ DATABASES = {
 
 import pymysql
 pymysql.install_as_MySQLdb()
+
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -82,6 +86,8 @@ TEMPLATES = [
         },
     },
 ]
+
+MEDIA_ROOT = '%s/healths/static/' % BASE_DIR
 
 WSGI_APPLICATION = 'HealthManager.wsgi.application'
 
