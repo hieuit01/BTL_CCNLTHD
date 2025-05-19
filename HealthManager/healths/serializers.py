@@ -1,9 +1,9 @@
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
-from healths.models import (User, UserRole, TrackingMode, Expert, RegularUser, HealthProfile, HealthTracking,
-                           Workout, WorkoutPlan, WorkoutSession,
-                           Meal, MealPlan, MealPlanMeal,
-                           HealthJournal, Reminder, ChatMessage, Review)
+from .models import (User, UserRole, TrackingMode, Expert, RegularUser, HealthProfile, HealthTracking,
+                     Workout, WorkoutPlan, WorkoutSession,
+                     Meal, MealPlan, MealPlanMeal,
+                     HealthJournal, Reminder, ChatMessage, Review, SessionStatus, PlanStatus)
 
 
 class ItemSerializer(serializers.ModelSerializer):
@@ -129,6 +129,31 @@ class WorkoutSessionSerializer(ModelSerializer):
         model = WorkoutSession
         fields = ['id', 'workout_plan', 'workout', 'date', 'status']
 
+        def create(self, validated_data):
+            workout_session = super().create(validated_data)
+            self.update_workout_plan_status(workout_session.workout_plan)
+            return workout_session
+
+        def update(self, instance, validated_data):
+            workout_session = super().update(instance, validated_data)
+            self.update_workout_plan_status(workout_session.workout_plan)
+            return workout_session
+
+        def update_workout_plan_status(self, workout_plan):
+            # Lấy tất cả các WorkoutSession của WorkoutPlan và kiểm tra trạng thái của chúng
+            sessions = workout_plan.sessions.all()
+            all_completed = all(session.status == SessionStatus.COMPLETED for session in sessions)
+            any_pending = any(session.status == SessionStatus.PENDING for session in sessions)
+
+            # Cập nhật trạng thái của WorkoutPlan
+            if any_pending:
+                workout_plan.status = PlanStatus.PENDING
+            elif all_completed:
+                workout_plan.status = PlanStatus.COMPLETED
+            else:
+                workout_plan.status = PlanStatus.PENDING  # Mặc định nếu có sự thay đổi nào
+
+            workout_plan.save()  # Lưu lại trạng thái mới cho WorkoutPlan
 
 class WorkoutPlanSerializer(ModelSerializer):
     class Meta:

@@ -38,8 +38,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'healths.apps.HealthsConfig',
-    # 'ckeditor',
-    # 'ckeditor_uploader',
+    'rest_framework',
+    'ckeditor',
+    'ckeditor_uploader'
 ]
 
 AUTH_USER_MODEL = 'healths.User'
@@ -49,7 +50,7 @@ DATABASES = {
     'ENGINE': 'django.db.backends.mysql',
     'NAME': 'healthdb',
     'USER': 'root',
-    'PASSWORD': 'Admin@123', # passwword root
+    'PASSWORD': 'root', # passwword root
     'HOST': '' # mặc định localhost
     }
 }
@@ -88,7 +89,7 @@ TEMPLATES = [
 ]
 
 MEDIA_ROOT = '%s/healths/static/' % BASE_DIR
-
+CKEDITOR_UPLOAD_PATH = "ckeditor/images/"
 WSGI_APPLICATION = 'HealthManager.wsgi.application'
 
 

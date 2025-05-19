@@ -2,7 +2,7 @@ from django.db import models
 from django.db.models import Avg
 from cloudinary.models import CloudinaryField
 from django.contrib.auth.models import AbstractUser
-
+from ckeditor.fields import RichTextField
 
 # Base model
 class BaseModel(models.Model):
@@ -34,6 +34,9 @@ class User(AbstractUser):
     gender = models.CharField(max_length=10, choices=Gender.choices, default=Gender.MALE)
     phone = models.CharField(max_length=20, blank=True, null=True)
     role = models.CharField(max_length=20, choices=UserRole.choices, default=UserRole.USER)
+    active = models.BooleanField(default=True)
+    created_date = models.DateField(auto_now_add=True, null=True)
+    updated_date = models.DateField(auto_now=True, null=True)
 
     def __str__(self):
         return self.username
@@ -46,7 +49,7 @@ class Expert(User):
     expert_type = models.CharField(max_length=20, choices=ExpertType.choices)
     specialization = models.CharField(max_length=255)
     experience_years = models.PositiveIntegerField()
-    bio = models.TextField()
+    bio = RichTextField()
 
     def __str__(self):
         return self.username
@@ -63,12 +66,16 @@ class RegularUser(User):
         Expert,
         limit_choices_to={'expert_type': ExpertType.TRAINER},
         blank=True,
+        null=True,
+        on_delete= models.CASCADE,
         related_name='connected_trainer'
     )
     connected_nutritionist = models.ForeignKey(
         Expert,
         limit_choices_to={'expert_type': ExpertType.NUTRITIONIST},
         blank=True,
+        null=True,
+        on_delete=models.CASCADE,
         related_name='connected_nutritionist'
     )
 
@@ -77,7 +84,7 @@ class RegularUser(User):
 
 class Review(models.Model):
     expert = models.ForeignKey(Expert, on_delete=models.CASCADE, related_name='reviews')
-    reviewer = models.ForeignKey(RegularUser, on_delete=models.CASCADE)
+    reviewer = models.ForeignKey(RegularUser, on_delete=models.CASCADE, related_name='reviews')
     rating = models.PositiveSmallIntegerField()  # 1-5 chẳng hạn
     comment = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -127,7 +134,7 @@ class HealthTracking(BaseModel):
 # Workout & WorkoutPlan
 class Workout(BaseModel):
     name = models.CharField(max_length=255)
-    description = models.TextField()
+    description = RichTextField()
     image = CloudinaryField()
     duration = models.PositiveIntegerField(help_text="Thời gian (phút)")
     calories_burned = models.PositiveIntegerField()
@@ -146,6 +153,7 @@ class WorkoutPlan(BaseModel):
     user_profile = models.ForeignKey(RegularUser, on_delete=models.CASCADE, related_name='workout_plans')
     start_date = models.DateField()
     end_date = models.DateField()
+    plan_name = models.CharField(max_length=255, help_text="Tên kế hoạch tập luyện", null=True) #them truong plan_name
     status = models.CharField(max_length=20, choices=PlanStatus.choices, default=PlanStatus.PENDING)
     workout = models.ManyToManyField(Workout, through='WorkoutSession')
 
@@ -153,7 +161,6 @@ class WorkoutPlan(BaseModel):
 class SessionStatus(models.TextChoices):
     PENDING = 'pending', 'Chưa thực hiện'
     COMPLETED = 'completed', 'Hoàn thành'
-
 
 class WorkoutSession(BaseModel):
     workout_plan = models.ForeignKey(WorkoutPlan, on_delete=models.CASCADE, related_name="sessions")
@@ -171,7 +178,7 @@ class WorkoutSession(BaseModel):
 # Meal Plan & Meal
 class Meal(BaseModel):
     name = models.CharField(max_length=255)
-    description = models.TextField()
+    description = RichTextField()
     image = CloudinaryField()
     calories = models.PositiveIntegerField()
     protein = models.FloatField()
@@ -186,7 +193,7 @@ class Meal(BaseModel):
 class MealPlan(BaseModel):
     user_profile = models.ForeignKey(RegularUser, on_delete=models.CASCADE, related_name="meal_plans")
     plan_name = models.CharField(max_length=255)
-    description = models.TextField()
+    description = RichTextField()
     start_date = models.DateField()
     end_date = models.DateField()
     goal = models.CharField(max_length=20, choices=HealthGoal.choices)
@@ -221,7 +228,7 @@ class MoodType(models.TextChoices):
 class HealthJournal(BaseModel):
     user_profile = models.ForeignKey(RegularUser, on_delete=models.CASCADE, related_name="health_journals")
     date = models.DateTimeField(auto_now_add=True)
-    note = models.TextField()
+    note = RichTextField()
     mood = models.CharField(max_length=20, choices=MoodType.choices)
 
     class Meta:
@@ -241,7 +248,7 @@ class ReminderType(models.TextChoices):
 class Reminder(BaseModel):
     user_profile = models.ForeignKey(RegularUser, on_delete=models.CASCADE, related_name="reminders")
     reminder_type = models.CharField(max_length=20, choices=ReminderType.choices)
-    message = models.CharField(max_length=255)
+    message = RichTextField()
     send_at = models.DateTimeField(null=False)
 
     def __str__(self):
