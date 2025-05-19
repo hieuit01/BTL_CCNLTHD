@@ -1,0 +1,157 @@
+{% extends 'admin/base_site.html' %}
+
+{% block title %}Admin | Thống kê tình trạng sức khỏe người dùng{% endblock %}
+
+{% block content %}
+<h1>THỐNG KÊ TÌNH TRẠNG SỨC KHỎE NGƯỜI DÙNG</h1>
+
+<form method="get" class="form-inline" style="margin-bottom: 20px;">
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Lọc</button>
+</form>
+
+{% if statistics %}
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Thời kỳ</th>
+            <th>Tổng bước chân</th>
+            <th>Chỉ số BMI trung bình</th>
+            <th>Nhịp tim trung bình</th>
+            <th>Tổng lượng nước uống (ml)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for stat in statistics %}
+        <tr>
+            <td>{{ stat.period|date:"Y-m-d" }}</td>
+            <td>{{ stat.total_steps }}</td>
+            <td>{{ stat.avg_bmi|floatformat:2 }}</td>
+            <td>{{ stat.avg_heart_rate|floatformat:2 }}</td>
+            <td>{{ stat.total_water_intake }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div style="width: 80%; max-width: 900px; margin: 30px auto;">
+    <canvas id="progressChart"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const labels = [
+        {% for stat in statistics %}
+            '{{ stat.period|date:"Y-m-d" }}',
+        {% endfor %}
+    ];
+
+    const stepsData = [
+        {% for stat in statistics %}
+            {{ stat.total_steps|default:0 }},
+        {% endfor %}
+    ];
+
+    const bmiData = [
+        {% for stat in statistics %}
+            {{ stat.avg_bmi|default:0 }},
+        {% endfor %}
+    ];
+
+    const heartRateData = [
+        {% for stat in statistics %}
+            {{ stat.avg_heart_rate|default:0 }},
+        {% endfor %}
+    ];
+
+    const waterData = [
+        {% for stat in statistics %}
+            {{ stat.total_water_intake|default:0 }},
+        {% endfor %}
+    ];
+
+    window.onload = function () {
+        const ctx = document.getElementById('progressChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Tổng bước chân',
+                        data: stepsData,
+                        borderColor: 'blue',
+                        backgroundColor: 'rgba(0,0,255,0.1)',
+                        yAxisID: 'y',
+                    },
+                    {
+                        label: 'Chỉ số BMI trung bình',
+                        data: bmiData,
+                        borderColor: 'green',
+                        backgroundColor: 'rgba(0,255,0,0.1)',
+                        yAxisID: 'y1',
+                    },
+                    {
+                        label: 'Nhịp tim trung bình',
+                        data: heartRateData,
+                        borderColor: 'red',
+                        backgroundColor: 'rgba(255,0,0,0.1)',
+                        yAxisID: 'y1',
+                    },
+                    {
+                        label: 'Tổng lượng nước uống (ml)',
+                        data: waterData,
+                        borderColor: 'purple',
+                        backgroundColor: 'rgba(128,0,128,0.1)',
+                        yAxisID: 'y',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                stacked: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Biểu đồ tiến trình sức khỏe người dùng',
+                        font: {
+                            size: 18
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Bước chân & Nước uống'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        title: {
+                            display: true,
+                            text: 'BMI & Nhịp tim'
+                        }
+                    }
+                }
+            }
+        });
+    };
+</script>
+
+{% else %}
+<p>Không có dữ liệu thống kê phù hợp.</p>
+{% endif %}
+{% endblock %}

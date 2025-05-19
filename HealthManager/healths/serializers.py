@@ -22,6 +22,14 @@ class UserSerializer(serializers.ModelSerializer):
         data['avatar'] = instance.avatar.url if instance.avatar else None
         return data
 
+    def create(self, validated_data):
+        data = validated_data.copy()
+        u = User(**data)
+        u.set_password(u.password)
+        u.save()
+
+        return u
+
     class Meta:
         model = User
         fields = [
@@ -30,6 +38,30 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {'password': {'write_only': True}}
 
+
+class ExpertProfileSerializer(serializers.ModelSerializer):
+    user = UserSerializer()
+
+    class Meta:
+        model = Expert
+        fields = ['id', 'user', 'expert_type', 'specialization', 'experience_years', 'bio']
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', None)
+
+        # Cập nhật User
+        if user_data:
+            user = instance.user
+            for attr, value in user_data.items():
+                setattr(user, attr, value)
+            user.save()
+
+        # Cập nhật ExpertProfile
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        return instance
 
 # Serializer cho RegularUser
 class RegularUserSerializer(UserSerializer):

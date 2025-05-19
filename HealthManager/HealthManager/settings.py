@@ -38,8 +38,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'healths.apps.HealthsConfig',
-    # 'ckeditor',
-    # 'ckeditor_uploader',
+    'ckeditor',
+    'ckeditor_uploader',
+    'oauth2_provider'
 ]
 
 AUTH_USER_MODEL = 'healths.User'
@@ -57,7 +58,25 @@ DATABASES = {
 import pymysql
 pymysql.install_as_MySQLdb()
 
+CKEDITOR_UPLOAD_PATH = "ckeditor/health/"
 
+import cloudinary.uploader
+
+# Configuration
+cloudinary.config(
+    cloud_name="hieuit01",
+    api_key="985155373829154",
+    api_secret="hiteBJZkhI384JIc6iQdT2xHIDA",
+    secure=True
+)
+
+OAUTH2_PROVIDER = { 'OAUTH2_BACKEND_CLASS': 'oauth2_provider.oauth2_backends.JSONOAuthLibCore' }
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'oauth2_provider.contrib.rest_framework.OAuth2Authentication',
+    )
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

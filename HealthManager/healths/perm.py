@@ -53,3 +53,15 @@ class CanReviewExpert(permissions.BasePermission):
             return getattr(user, 'connected_nutritionist_id', None) == obj.id
 
         return False
+
+class IsExpertWithProfile(permissions.BasePermission):
+    """
+    Cho phép truy cập nếu user có role là 'expert' và có expert_profile.
+    """
+    def has_permission(self, request, view):
+        user = request.user
+        return (
+            user.is_authenticated
+            and user.role == 'expert'
+            and hasattr(user, 'expert_profile')
+        )

@@ -169,3 +169,20 @@ class ReviewCreateView(viewsets.ViewSet, generics.CreateAPIView):
         serializer.save(reviewer=user, expert=expert)
 
 
+# class ExpertProfileViewSet(viewsets.ViewSet):
+#     serializer_class = serializers.ExpertProfileSerializer
+#     permission_classes = [permissions.IsAuthenticated, IsExpertWithProfile]
+#
+#     @action(methods=['get', 'patch'], detail=False, url_path='me')
+#     def get_current_expert(self, request):
+#         expert = request.user.expert_profile
+#
+#         if request.method == 'PATCH':
+#             serializer = self.serializer_class(expert, data=request.data, partial=True)
+#             serializer.is_valid(raise_exception=True)
+#             serializer.save()
+#
+#             return Response(serializer.data)
+#
+#         serializer = self.serializer_class(expert)
+#         return Response(serializer.data)
