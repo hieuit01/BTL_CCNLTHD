@@ -40,7 +40,8 @@ INSTALLED_APPS = [
     'healths.apps.HealthsConfig',
     'ckeditor',
     'ckeditor_uploader',
-    'oauth2_provider'
+    'oauth2_provider',
+    'rest_framework'
 ]
 
 AUTH_USER_MODEL = 'healths.User'
@@ -50,7 +51,7 @@ DATABASES = {
     'ENGINE': 'django.db.backends.mysql',
     'NAME': 'healthdb',
     'USER': 'root',
-    'PASSWORD': 'Admin@123', # passwword root
+    'PASSWORD': 'root', # passwword root
     'HOST': '' # mặc định localhost
     }
 }
@@ -75,6 +76,7 @@ OAUTH2_PROVIDER = { 'OAUTH2_BACKEND_CLASS': 'oauth2_provider.oauth2_backends.JSO
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'oauth2_provider.contrib.rest_framework.OAuth2Authentication',
+'rest_framework.authentication.SessionAuthentication',
     )
 }
 

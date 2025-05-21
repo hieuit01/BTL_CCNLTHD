@@ -1,10 +1,16 @@
+from django.utils import timezone
 from rest_framework import viewsets, status, generics, permissions, parsers, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
-from .models import User, RegularUser, Expert, UserRole, TrackingMode, Review
-from .serializers import UserSerializer, RegularUserSerializer, ExpertSerializer, ReviewSerializer
+from .models import User, RegularUser, Expert, UserRole, TrackingMode, Review, ExpertType, HealthProfile, \
+    HealthTracking, Workout, WorkoutPlan, WorkoutSession, Meal, MealPlan, ChatMessage, Reminder, HealthJournal, \
+    MealPlanMeal
+from .serializers import UserSerializer, RegularUserSerializer, ExpertSerializer, ReviewSerializer, \
+    HealthProfileSerializer, HealthTrackingSerializer, WorkoutSerializer, WorkoutPlanSerializer, \
+    WorkoutSessionSerializer, MealSerializer, MealPlanSerializer, ChatMessageCreateSerializer, ReminderSerializer, \
+    HealthJournalSerializer, MealPlanMealSerializer
 from .perm import IsRegularUserWithConnectedTrackingMode, CanReviewExpert
 from django.db.models import Count, Avg, Value
 from django.db.models.functions import Coalesce
@@ -77,18 +83,18 @@ class UserViewSet(viewsets.ViewSet, generics.CreateAPIView):
             role = self.request.data.get('role')
             if role == UserRole.USER:
                 return RegularUserSerializer
-            elif role in [UserRole.TRAINER, UserRole.NUTRITIONIST]:
+            elif role in [UserRole.Admin, UserRole.EXPERT]:
                 return ExpertSerializer
             return UserSerializer
         return UserSerializer
 
     def create(self, request, *args, **kwargs):
         role = request.data.get('role')
-        if role not in [UserRole.USER, UserRole.TRAINER, UserRole.NUTRITIONIST]:
+        if role not in [UserRole.USER, UserRole.Admin, UserRole.EXPERT]:
             return Response({'error': 'Vai trò không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
 
         data = request.data.copy()
-        if role in [UserRole.TRAINER, UserRole.NUTRITIONIST]:
+        if role in [ExpertType.TRAINER, ExpertType.NUTRITIONIST]:
             data['expert_type'] = role
 
         serializer_class = self.get_serializer_class()
@@ -186,3 +192,206 @@ class ReviewCreateView(viewsets.ViewSet, generics.CreateAPIView):
 #
 #         serializer = self.serializer_class(expert)
 #         return Response(serializer.data)
+
+
+class WorkoutViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = WorkoutSerializer
+
+    def get_queryset(self):
+        return Workout.objects.filter(active=True)
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        instance.delete()
+
+
+class WorkoutPlanViewSet(viewsets.ModelViewSet):
+    serializer_class = WorkoutPlanSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return WorkoutPlan.objects.filter(user=self.request.user.git )
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user.regular_profile)
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        instance.delete()
+
+    @action(detail=True, methods=['post'], url_path='add-workout')
+    def add_workout(self, request, pk=None):
+        plan = self.get_object()
+        workout_id = request.data.get('workout_id')
+        date = request.data.get('date')
+        workout = get_object_or_404(Workout, pk=workout_id)
+        session = WorkoutSession.objects.create(
+            workout_plan=plan,
+            workout=workout,
+            date=date
+        )
+        return Response(WorkoutSessionSerializer(session).data, status=201)
+
+    @action(detail=True, methods=['delete'], url_path='remove-workout')
+    def remove_workout(self, request, pk=None):
+        plan = self.get_object()
+        session_id = request.query_params.get('session_id')
+        session = get_object_or_404(WorkoutSession, pk=session_id, workout_plan=plan)
+        session.delete()
+        return Response(status=204)
+
+    @action(detail=True, methods=['post'], url_path='mark-completed')
+    def mark_completed(self, request, pk=None):
+        plan = self.get_object()
+        plan.status = 'completed'
+        plan.save()
+        return Response({'status': 'WorkoutPlan marked as completed'})
+
+    @action(detail=True, methods=['post'], url_path='mark-pending')
+    def mark_pending(self, request, pk=None):
+        plan = self.get_object()
+        plan.status = 'pending'
+        plan.save()
+        return Response({'status': 'WorkoutPlan marked as pending'})
+
+
+class MealViewSet(viewsets.ModelViewSet):
+    queryset = Meal.objects.all()
+    serializer_class = MealSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+
+class MealPlanViewSet(viewsets.ModelViewSet):
+    serializer_class = MealPlanSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return MealPlan.objects.filter(user=self.request.user.regular_profile)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user.regular_profile)
+
+    @action(detail=True, methods=['post'], url_path='add-meal')
+    def add_meal(self, request, pk=None):
+        plan = self.get_object()
+        data = request.data.copy()
+        data['meal_plan'] = plan.id
+        serializer = MealPlanMealSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+    @action(detail=True, methods=['delete'], url_path='remove-meal')
+    def remove_meal(self, request, pk=None):
+        plan = self.get_object()
+        meal_id = request.query_params.get('meal_id')
+        date = request.query_params.get('date')
+        meal_time = request.query_params.get('meal_time')
+
+        instance = MealPlanMeal.objects.filter(
+            meal_plan=plan,
+            meal_id=meal_id,
+            date=date,
+            meal_time=meal_time
+        ).first()
+
+        if not instance:
+            return Response({'error': 'Không tìm thấy meal'}, status=404)
+
+        instance.delete()
+        return Response(status=204)
+
+
+class HealthProfileViewSet(viewsets.ModelViewSet):
+    serializer_class = HealthProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return HealthProfile.objects.filter(user=self.request.user.regular_profile)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user.regular_profile)
+
+
+class HealthTrackingViewSet(viewsets.ModelViewSet):
+    serializer_class = HealthTrackingSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return HealthTracking.objects.filter(user=self.request.user.regular_profile)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user.regular_profile)
+
+
+class WorkoutSessionViewSet(viewsets.ModelViewSet):
+    serializer_class = WorkoutSessionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return WorkoutSession.objects.filter(workout_plan__user=self.request.user.regular_profile)
+
+    @action(detail=True, methods=['post'], url_path='mark-complete')
+    def mark_complete(self, request, pk=None):
+        session = self.get_object()
+        session.status = 'completed'
+        session.save()
+        return Response({'status': 'WorkoutSession marked as completed'})
+
+    @action(detail=True, methods=['post'], url_path='mark-pending')
+    def mark_pending(self, request, pk=None):
+        session = self.get_object()
+        session.status = 'pending'
+        session.save()
+        return Response({'status': 'WorkoutSession marked as pending'})
+
+
+class MealPlanMealViewSet(viewsets.ModelViewSet):
+    serializer_class = MealPlanMealSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return MealPlanMeal.objects.filter(meal_plan__user=self.request.user.regular_profile)
+
+
+class HealthJournalViewSet(viewsets.ModelViewSet):
+    serializer_class = HealthJournalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return HealthJournal.objects.filter(user=self.request.user.regular_profile)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user.regular_profile)
+
+
+class ReminderViewSet(viewsets.ModelViewSet):
+    serializer_class = ReminderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Reminder.objects.filter(user=self.request.user.regular_profile)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user.regular_profile)
+
+
+class ChatMessageViewSet(viewsets.ModelViewSet):
+    serializer_class = ChatMessageCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return ChatMessage.objects.filter(sender=user) | ChatMessage.objects.filter(receiver=user)
+
+    def perform_create(self, serializer):
+        serializer.save(sender=self.request.user)

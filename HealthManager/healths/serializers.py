@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
-from healths.models import (User, UserRole, TrackingMode, Expert, RegularUser, HealthProfile, HealthTracking,
+from .models import (User, UserRole, TrackingMode, Expert, RegularUser, HealthProfile, HealthTracking,
                            Workout, WorkoutPlan, WorkoutSession,
                            Meal, MealPlan, MealPlanMeal,
                            HealthJournal, Reminder, ChatMessage, Review)
