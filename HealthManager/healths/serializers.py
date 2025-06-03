@@ -141,13 +141,13 @@ class HealthProfileSerializer(ModelSerializer):
 
     class Meta:
         model = HealthProfile
-        fields = ['id', 'user_profile', 'height', 'weight', 'age', 'goal', 'bmi']
+        fields = ['id', 'user', 'height', 'weight', 'age', 'goal', 'bmi']
 
 
 class HealthTrackingSerializer(ModelSerializer):
     class Meta:
         model = HealthTracking
-        fields = ['id', 'user_profile', 'date', 'bmi', 'steps', 'heart_rate', 'water_intake']
+        fields = ['id', 'user', 'date', 'bmi', 'steps', 'heart_rate', 'water_intake']
 
 
 class WorkoutSerializer(ItemSerializer):
@@ -165,7 +165,7 @@ class WorkoutSessionSerializer(ModelSerializer):
 class WorkoutPlanSerializer(ModelSerializer):
     class Meta:
         model = WorkoutPlan
-        fields = ['id', 'user_profile', 'start_date', 'end_date', 'status', 'workout']
+        fields = ['id', 'user', 'start_date', 'end_date', 'status', 'workout']
 
 
 class MealSerializer(ItemSerializer):
@@ -183,19 +183,19 @@ class MealPlanMealSerializer(ModelSerializer):
 class MealPlanSerializer(ModelSerializer):
     class Meta:
         model = MealPlan
-        fields = ['id', 'user_profile', 'plan_name', 'description', 'start_date', 'end_date', 'goal', 'meals']
+        fields = ['id', 'user', 'plan_name', 'description', 'start_date', 'end_date', 'goal', 'meals']
 
 
 class HealthJournalSerializer(ModelSerializer):
     class Meta:
         model = HealthJournal
-        fields = ['id', 'user_profile', 'date', 'note', 'mood']
+        fields = ['id', 'user', 'date', 'note', 'mood']
 
 
 class ReminderSerializer(ModelSerializer):
     class Meta:
         model = Reminder
-        fields = ['id', 'user_profile', 'reminder_type', 'message', 'send_at']
+        fields = ['id', 'user', 'reminder_type', 'message', 'send_at']
 
 
 class ChatMessageCreateSerializer(serializers.ModelSerializer):

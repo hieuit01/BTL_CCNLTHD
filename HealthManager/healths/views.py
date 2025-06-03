@@ -216,10 +216,27 @@ class WorkoutPlanViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return WorkoutPlan.objects.filter(user=self.request.user.git )
+        user = self.request.user
+
+        if hasattr(user, 'regular_profile'):
+            return WorkoutPlan.objects.filter(user=user.regular_profile)
+        elif hasattr(user, 'expert_profile'):
+            expert = user.expert_profile
+            # Lọc các WorkoutPlan từ user đang kết nối với expert này
+            return WorkoutPlan.objects.filter(
+                user__connected_trainer=expert
+            ) if expert.expert_type == 'trainer' else WorkoutPlan.objects.filter(
+                user__connected_nutritionist=expert
+            )
+        else:
+            return WorkoutPlan.objects.none()  # hoặc raise lỗi nếu cần
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user.regular_profile)
+        user = self.request.user
+        if hasattr(user, 'regular_profile'):
+            serializer.save(user=user.regular_profile)
+        else:
+            raise serializers.ValidationError("Chỉ người dùng thường mới được phép tạo kế hoạch tập luyện.")
 
     def perform_update(self, serializer):
         serializer.save()
@@ -268,16 +285,51 @@ class MealViewSet(viewsets.ModelViewSet):
     serializer_class = MealSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        return Meal.objects.filter(active=True)
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        instance.delete()
 
 class MealPlanViewSet(viewsets.ModelViewSet):
     serializer_class = MealPlanSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return MealPlan.objects.filter(user=self.request.user.regular_profile)
+        user = self.request.user
+
+        # Người dùng thường: chỉ thấy kế hoạch của họ
+        if hasattr(user, 'regular_profile'):
+            return MealPlan.objects.filter(user=user.regular_profile)
+
+        # Expert xem được kế hoạch của các user đã kết nối
+        elif hasattr(user, 'expert_profile'):
+            expert = user.expert_profile
+            if expert.expert_type == 'trainer':
+                return MealPlan.objects.filter(user__connected_trainer=expert)
+            else:
+                return MealPlan.objects.filter(user__connected_nutritionist=expert)
+
+        # Admin: xem tất cả
+        elif user.role == UserRole.Admin:
+            return MealPlan.objects.all()
+
+        return MealPlan.objects.none()
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user.regular_profile)
+        serializer.save()
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        instance.delete()
 
     @action(detail=True, methods=['post'], url_path='add-meal')
     def add_meal(self, request, pk=None):
@@ -316,10 +368,24 @@ class HealthProfileViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return HealthProfile.objects.filter(user=self.request.user.regular_profile)
+        user = self.request.user
 
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user.regular_profile)
+        # Người dùng thường: chỉ thấy kế hoạch của họ
+        if hasattr(user, 'regular_profile'):
+            return HealthProfile.objects.filter(user=user.regular_profile)
+
+        # Expert xem được kế hoạch của các user đã kết nối
+        elif hasattr(user, 'expert_profile'):
+            expert = user.expert_profile
+            if expert.expert_type == 'trainer':
+                return HealthProfile.objects.filter(user__connected_trainer=expert)
+            else:
+                return HealthProfile.objects.filter(user__connected_nutritionist=expert)
+
+        # Admin: xem tất cả
+        elif user.role == UserRole.Admin:
+            return HealthProfile.objects.all()
+
 
 
 class HealthTrackingViewSet(viewsets.ModelViewSet):
@@ -327,7 +393,23 @@ class HealthTrackingViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return HealthTracking.objects.filter(user=self.request.user.regular_profile)
+        user = self.request.user
+
+        # Người dùng thường: chỉ thấy kế hoạch của họ
+        if hasattr(user, 'regular_profile'):
+            return HealthTracking.objects.filter(user=user.regular_profile)
+
+        # Expert xem được kế hoạch của các user đã kết nối
+        elif hasattr(user, 'expert_profile'):
+            expert = user.expert_profile
+            if expert.expert_type == 'trainer':
+                return HealthTracking.objects.filter(user__connected_trainer=expert)
+            else:
+                return HealthTracking.objects.filter(user__connected_nutritionist=expert)
+
+        # Admin: xem tất cả
+        elif user.role == UserRole.Admin:
+            return HealthTracking.objects.all()
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user.regular_profile)

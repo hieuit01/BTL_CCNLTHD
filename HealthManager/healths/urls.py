@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import UserViewSet, TrainerViewSet, NutritionistViewSet, HealthProfileViewSet, HealthTrackingViewSet, \
     WorkoutViewSet, WorkoutPlanViewSet, WorkoutSessionViewSet, MealViewSet, MealPlanViewSet, MealPlanMealViewSet, \
     HealthJournalViewSet, ReminderViewSet, ChatMessageViewSet
-
+from django.contrib.auth import views as auth_views
 router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'trainers', TrainerViewSet, basename='trainer')
@@ -20,6 +20,6 @@ router.register(r'health-journals', HealthJournalViewSet, basename='health-journ
 router.register(r'reminders', ReminderViewSet, basename='reminder')
 router.register(r'chat-messages', ChatMessageViewSet, basename='chat-message')
 urlpatterns = [
-
+    path('api-auth/', include('rest_framework.urls')),
     path('', include(router.urls)),
 ]
