@@ -3,7 +3,7 @@ services:
     name: healthmanager-api
     env: python
     buildCommand: "pip install -r HealthManager/requirements.txt"
-    startCommand: "gunicorn HealthManager.wsgi:application --bind 0.0.0.0:$PORT"
+    startCommand: "gunicorn HealthManager.wsgi:application --chdir HealthManager --bind 0.0.0.0:$PORT"
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: HealthManager.settings
