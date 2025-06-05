@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-ozb#*yqqyfj+gko!1ptx(4h6cuk7cx1a%p$=fpy_ld)-1d+^tg
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['.onrender.com']
 
 # Application definition
 
@@ -46,15 +46,25 @@ INSTALLED_APPS = [
 
 AUTH_USER_MODEL = 'healths.User'
 
+# DATABASES = {
+#     'default': {
+#     'ENGINE': 'django.db.backends.mysql',
+#     'NAME': 'healthdb',
+#     'USER': 'root',
+#     'PASSWORD': 'Admin@123', # passwword root
+#     'HOST': '' # mặc định localhost
+#     }
+# }
+
+import dj_database_url
+import os
+
 DATABASES = {
-    'default': {
-    'ENGINE': 'django.db.backends.mysql',
-    'NAME': 'healthdb',
-    'USER': 'root',
-    'PASSWORD': 'Admin@123', # passwword root
-    'HOST': '' # mặc định localhost
-    }
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL')
+    )
 }
+
 
 import pymysql
 pymysql.install_as_MySQLdb()
