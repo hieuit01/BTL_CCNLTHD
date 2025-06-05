@@ -7,6 +7,7 @@ from django import forms
 from django.utils.html import mark_safe
 from ckeditor_uploader.widgets import CKEditorUploadingWidget
 from django.db.models.functions import TruncWeek, TruncMonth
+from django.core.exceptions import PermissionDenied
 
 from .models import (
     User, RegularUser, Expert, Review,
@@ -14,7 +15,7 @@ from .models import (
     Workout, WorkoutPlan, WorkoutSession,
     Meal, MealPlan, MealPlanMeal,
     HealthJournal, Reminder,
-    ChatMessage, TrackingMode
+    ChatMessage, TrackingMode, ExpertType
 )
 
 # ----- User Admin -----
@@ -58,8 +59,8 @@ class RegularUserAdmin(admin.ModelAdmin):
     form = RegularUserAdminForm
     list_display = [
         'id', 'get_username', 'get_full_name', 'tracking_mode',
-        'get_trainer_id', 'get_trainer_name',
-        'get_nutritionist_id', 'get_nutritionist_name',
+        'get_trainer_id', 'get_trainer_username',
+        'get_nutritionist_id', 'get_nutritionist_username',
         'active', 'created_date',
     ]
     list_filter = ['id', 'tracking_mode', 'active']
@@ -86,10 +87,10 @@ class RegularUserAdmin(admin.ModelAdmin):
         return obj.connected_trainer.user.id if obj.connected_trainer else "-"
 
     @admin.display(description='Trainer name')
-    def get_trainer_name(self, obj):
+    def get_trainer_username(self, obj):
         if obj.connected_trainer:
             user = obj.connected_trainer.user
-            return f"{user.first_name} {user.last_name}".strip() or user.username
+            return user.username
         return "-"
 
     @admin.display(description='ID Nutritionist')
@@ -97,10 +98,10 @@ class RegularUserAdmin(admin.ModelAdmin):
         return obj.connected_nutritionist.user.id if obj.connected_nutritionist else "-"
 
     @admin.display(description='Nutritionist name')
-    def get_nutritionist_name(self, obj):
+    def get_nutritionist_username(self, obj):
         if obj.connected_nutritionist:
             user = obj.connected_nutritionist.user
-            return f"{user.first_name} {user.last_name}".strip() or user.username
+            return user.username
         return "-"
 
 
@@ -183,56 +184,192 @@ class HealthTrackingAdmin(admin.ModelAdmin):
 
 # ----- Workout Admin -----
 class WorkoutAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'goal', 'duration', 'calories_burned', 'active', 'created_date']
-    list_filter = ['id', 'goal', 'active', 'created_date']
+    list_display = [
+        'id', 'name', 'goal',
+        'created_by', 'suggested_to', 'is_public', 'active', 'created_date'
+    ]
+    list_filter = ['goal', 'is_public', 'active', 'created_date']
     search_fields = ['name']
     readonly_fields = ['image_view']
+    autocomplete_fields = ['created_by', 'suggested_to']
 
     def image_view(self, workout):
         if workout.image:
             return mark_safe(f"<img src='{workout.image.url}' width=200 />")
         return "Không có ảnh"
-
     image_view.short_description = "Hình ảnh"
+
+    # def get_form(self, request, obj=None, **kwargs):
+    #     form = super().get_form(request, obj, **kwargs)
+    #
+    #     # Nếu là chuyên gia
+    #     if request.user.role == 'expert' and hasattr(request.user, 'expert_profile'):
+    #         expert = request.user.expert_profile
+    #
+    #         if expert.expert_type == 'trainer':
+    #             # Danh sách user kết nối với chuyên gia dinh dưỡng này
+    #             qs = RegularUser.objects.filter(connected_trainer=expert)
+    #
+    #             # Nếu đang edit và giá trị suggested_to hiện tại không nằm trong danh sách, thêm vào
+    #             if obj and obj.suggested_to and obj.suggested_to not in qs:
+    #                 qs = RegularUser.objects.filter(pk=obj.suggested_to.pk) | qs
+    #
+    #             form.base_fields['suggested_to'].queryset = qs
+    #         else:
+    #             # Không phải chuyên gia dinh dưỡng thì không cho gợi ý
+    #             form.base_fields['suggested_to'].queryset = RegularUser.objects.none()
+    #
+    #     elif request.user.role != 'admin':
+    #         # Người dùng thường không được gợi ý
+    #         form.base_fields['suggested_to'].queryset = RegularUser.objects.none()
+    #
+    #     return form
+    #
+    # def save_model(self, request, obj, form, change):
+    #     user = request.user
+    #
+    #     # Nếu là bài tập gợi ý
+    #     if obj.suggested_to:
+    #         if user.role != 'expert' or not hasattr(user, 'expert_profile'):
+    #             raise PermissionDenied("Chỉ chuyên gia mới được gợi ý bài tập cho người dùng.")
+    #
+    #         expert = user.expert_profile
+    #
+    #         if expert.expert_type == ExpertType.TRAINER:
+    #             if obj.suggested_to.connected_trainer_id != expert.id:
+    #                 raise PermissionDenied("Bạn chỉ được gợi ý bài tập cho người dùng đã kết nối với bạn.")
+    #         elif expert.expert_type == ExpertType.NUTRITIONIST:
+    #             if obj.suggested_to.connected_nutritionist_id != expert.id:
+    #                 raise PermissionDenied("Bạn chỉ được gợi ý bài tập cho người dùng đã kết nối với bạn.")
+    #         else:
+    #             raise PermissionDenied("Loại chuyên gia không hợp lệ.")
+    #
+    #     # Gán người tạo nếu là tạo mới
+    #     if not obj.pk:
+    #         obj.created_by = user
+    #
+    #     # Luôn set is_public = False nếu không phải admin
+    #     if not user.is_superuser:
+    #         obj.is_public = False
+    #
+    #     super().save_model(request, obj, form, change)
+
+
+# Inline để hiển thị và chỉnh sửa WorkoutSession bên trong WorkoutPlan
+class WorkoutSessionInline(admin.TabularInline):
+    model = WorkoutSession
+    extra = 1
+    fields = ['workout', 'date', 'duration', 'status']
+    readonly_fields = []
+    show_change_link = True
 
 # ----- WorkoutPlan Admin -----
 class WorkoutPlanAdmin(admin.ModelAdmin):
-    list_display = ['id', 'user', 'start_date', 'end_date', 'status', 'active', 'created_date']
-    list_filter = ['id', 'status', 'active', 'start_date', 'end_date']
-    search_fields = ['user__user__username']
+    list_display = ['id', 'user', 'plan_name', 'start_date', 'end_date', 'created_date']
+    list_filter = ['start_date', 'end_date', 'created_date']
+    search_fields = ['user__user__username', 'plan_name']
+    inlines = [WorkoutSessionInline]
 
 # ----- WorkoutSession Admin -----
 class WorkoutSessionAdmin(admin.ModelAdmin):
-    list_display = ['id', 'workout_plan', 'workout', 'date', 'status']
-    list_filter = ['id', 'status', 'date']
+    list_display = ['id', 'workout_plan', 'workout', 'date', 'duration', 'status']
+    list_filter = ['status', 'date']
     search_fields = ['workout_plan__user__user__username', 'workout__name']
     date_hierarchy = 'date'
 
 # ----- Meal Admin -----
 class MealAdmin(admin.ModelAdmin):
-    list_display = ['id', 'name', 'goal', 'calories', 'protein', 'carbs', 'fat', 'active', 'created_date']
-    list_filter = ['id', 'goal', 'active']
+    list_display = [
+        'id', 'name', 'goal', 'calories', 'created_by',
+        'suggested_to', 'is_public', 'active', 'created_date'
+    ]
+    list_filter = ['goal', 'is_public', 'active', 'created_date']
     search_fields = ['name']
     readonly_fields = ['image_view']
+    autocomplete_fields = ['created_by', 'suggested_to']
 
     def image_view(self, meal):
         if meal.image:
             return mark_safe(f"<img src='{meal.image.url}' width=200 />")
         return "Không có ảnh"
-
     image_view.short_description = "Hình ảnh"
 
+    # def get_form(self, request, obj=None, **kwargs):
+    #     form = super().get_form(request, obj, **kwargs)
+    #
+    #     # Nếu là chuyên gia
+    #     if request.user.role == 'expert' and hasattr(request.user, 'expert_profile'):
+    #         expert = request.user.expert_profile
+    #
+    #         if expert.expert_type == ExpertType.NUTRITIONIST: # Sử dụng ExpertType.NUTRITIONIST từ enum
+    #             # Danh sách user kết nối với chuyên gia dinh dưỡng này
+    #             qs = RegularUser.objects.filter(connected_nutritionist=expert)
+    #
+    #             # Nếu đang edit và giá trị suggested_to hiện tại không nằm trong danh sách, thêm vào
+    #             if obj and obj.suggested_to and obj.suggested_to not in qs:
+    #                 qs = RegularUser.objects.filter(pk=obj.suggested_to.pk) | qs
+    #
+    #             form.base_fields['suggested_to'].queryset = qs
+    #         else:
+    #             # Nếu không phải chuyên gia dinh dưỡng thì không cho gợi ý bữa ăn
+    #             form.base_fields['suggested_to'].queryset = RegularUser.objects.none()
+    #
+    #     elif request.user.role != 'admin':
+    #         # Người dùng thường và các vai trò khác không được gợi ý
+    #         form.base_fields['suggested_to'].queryset = RegularUser.objects.none()
+    #
+    #     return form
+    #
+    # def save_model(self, request, obj, form, change):
+    #     user = request.user
+    #
+    #     if obj.suggested_to:
+    #         # Chỉ chuyên gia mới được gợi ý
+    #         if user.role != 'expert' or not hasattr(user, 'expert_profile'):
+    #             raise PermissionDenied("Bạn không có quyền gợi ý bữa ăn.")
+    #
+    #         expert = user.expert_profile
+    #
+    #         # Chỉ chuyên gia dinh dưỡng mới được gợi ý bữa ăn
+    #         if expert.expert_type != ExpertType.NUTRITIONIST:
+    #             raise PermissionDenied("Chỉ chuyên gia dinh dưỡng mới được gợi ý bữa ăn.")
+    #
+    #         # Đảm bảo người dùng được gợi ý đã kết nối với chuyên gia dinh dưỡng này
+    #         if obj.suggested_to.connected_nutritionist_id != expert.id:
+    #             raise PermissionDenied("Bạn chỉ được gợi ý bữa ăn cho người dùng đã kết nối với bạn với tư cách chuyên gia dinh dưỡng.")
+    #
+    #     if not obj.pk:
+    #         obj.created_by = user
+    #
+    #     # Luôn set is_public = False nếu không phải admin
+    #     if not user.is_superuser: # Giữ logic này để chỉ admin mới có thể công khai bữa ăn
+    #          obj.is_public = False
+    #
+    #     super().save_model(request, obj, form, change)
+
 # ----- MealPlan Admin -----
+class MealPlanMealInline(admin.TabularInline):
+    model = MealPlanMeal
+    extra = 1  # số dòng trống thêm mới
+    fields = ['meal', 'date', 'meal_time']
+    readonly_fields = []
+    show_change_link = True
+    autocomplete_fields = ['meal']
+
 class MealPlanAdmin(admin.ModelAdmin):
     list_display = ['id', 'plan_name', 'user', 'goal', 'start_date', 'end_date', 'active', 'created_date']
-    list_filter = ['id', 'goal', 'active', 'start_date', 'end_date']
+    list_filter = ['goal', 'active', 'start_date', 'end_date']
     search_fields = ['plan_name', 'user__user__username']
+    inlines = [MealPlanMealInline]
+    autocomplete_fields = ['user']
 
 # ----- MealPlanMeal Admin -----
 class MealPlanMealAdmin(admin.ModelAdmin):
     list_display = ['id', 'meal_plan', 'meal', 'date', 'meal_time', 'active']
-    list_filter = ['id', 'meal_time', 'active', 'date']
+    list_filter = ['meal_time', 'active', 'date']
     search_fields = ['meal_plan__plan_name', 'meal__name']
+    date_hierarchy = 'date'
+    autocomplete_fields = ['meal_plan', 'meal']
 
 # ----- HealthJournal Admin -----
 class HealthJournalAdmin(admin.ModelAdmin):
@@ -256,7 +393,7 @@ class ChatMessageAdmin(admin.ModelAdmin):
     list_display = ('sender', 'receiver', 'message_type', 'is_read', 'created_date')
     list_filter = ('message_type', 'is_read', 'created_date')
     search_fields = ('sender__username', 'receiver__username', 'message')
-    readonly_fields = ('created_date',)
+    readonly_fields = ('created_date', 'updated_date')
 
 class ReportFilterForm(forms.Form):
     user_id = forms.IntegerField(required=False, label="ID người dùng")

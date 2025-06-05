@@ -27,7 +27,6 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -40,7 +39,9 @@ INSTALLED_APPS = [
     'healths.apps.HealthsConfig',
     'ckeditor',
     'ckeditor_uploader',
-    'oauth2_provider'
+    'rest_framework',
+    'drf_yasg',
+    'oauth2_provider',
 ]
 
 AUTH_USER_MODEL = 'healths.User'
@@ -70,7 +71,14 @@ cloudinary.config(
     secure=True
 )
 
-OAUTH2_PROVIDER = { 'OAUTH2_BACKEND_CLASS': 'oauth2_provider.oauth2_backends.JSONOAuthLibCore' }
+OAUTH2_PROVIDER = {
+    'ACCESS_TOKEN_EXPIRE_SECONDS': 36000,
+    'SCOPES': {'read': 'Read scope', 'write': 'Write scope'},
+    'AUTHORIZATION_CODE_EXPIRE_SECONDS': 600,
+    'OAUTH2_BACKEND_CLASS': 'oauth2_provider.oauth2_backends.OAuthLibCore',
+    'GRANT_TYPE_ALLOW_LIST': ['authorization_code', 'password', 'client_credentials', 'refresh_token'],
+}
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -155,3 +163,25 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+CLIENT_ID = 'fNRZSHmkWnbWx5XXcpaizYVJA0fhSXgK0VrEwhJF'
+CLIENT_SECRET = 'Tcu9tld1R3Cx44os9ctpnEymwM72c4X0STvJCaCqhacFJt31sYBnDpfknJXewzFqDxeUwPrG2oCyRbct8rvWGg1tbjl08aJBA8LSUF8VkuCmHKw4rtVkyaTe8RidkOxH'
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
