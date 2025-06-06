@@ -383,10 +383,39 @@ class HealthJournalAdmin(admin.ModelAdmin):
 
 # ----- Reminder Admin -----
 class ReminderAdmin(admin.ModelAdmin):
-    list_display = ('user', 'reminder_type', 'message', 'send_at', 'active')
-    list_filter = ('reminder_type', 'active', 'send_at')
-    search_fields = ('user__user__username', 'message')
-    date_hierarchy = 'send_at'
+    list_display = (
+        'user',
+        'reminder_type',
+        'message',
+        'remind_time',
+        'repeat_days_display',
+        'active'
+    )
+    list_filter = (
+        'reminder_type',
+        'active',
+        'remind_time'
+    )
+    search_fields = (
+        'user__user__username',
+        'message'
+    )
+    date_hierarchy = 'created_date'
+
+    def repeat_days_display(self, obj):
+        """Hiển thị danh sách các ngày lặp lại dưới dạng tiếng Việt."""
+        days_map = {
+            "mon": "Thứ 2",
+            "tue": "Thứ 3",
+            "wed": "Thứ 4",
+            "thu": "Thứ 5",
+            "fri": "Thứ 6",
+            "sat": "Thứ 7",
+            "sun": "CN"
+        }
+        return ", ".join(days_map.get(day, day) for day in obj.get_repeat_day_list())
+
+    repeat_days_display.short_description = "Lặp lại"
 
 # ----- ChatMessage Admin -----
 class ChatMessageAdmin(admin.ModelAdmin):

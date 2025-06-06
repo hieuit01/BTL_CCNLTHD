@@ -9,7 +9,6 @@ from .serializers import (UserSerializer, ReviewSerializer, UserConnectedSeriali
                           HealthProfileSerializer, HealthTrackingSerializer, WorkoutSerializer, WorkoutPlanSerializer,
                           MealPlanSerializer, HealthJournalSerializer, ReminderSerializer, ChatMessageSerializer)
 from .perm import CanReviewExpert, IsExpert, IsRegularUser, IsOwnerOrExpertConnected, IsTrainer
-from .paginators import HealthPagination
 from django.db.models import Q, Avg, F, Case, When, Value, FloatField, Sum
 from django.utils.timezone import now, timedelta
 
@@ -96,7 +95,6 @@ class UserViewSet(viewsets.ViewSet, generics.CreateAPIView):
 class ExpertViewSet(viewsets.ViewSet, generics.CreateAPIView):
     queryset = Expert.objects.all()
     serializer_class = ExpertSerializer
-    pagination_class = HealthPagination
     parser_classes = [parsers.JSONParser, parsers.MultiPartParser]
 
 
@@ -377,7 +375,7 @@ class HealthProfileViewSet(viewsets.ViewSet, generics.CreateAPIView):
         return Response(serializer.data)
 
 # ------HealthTrackingViewSet------
-class HealthTrackingViewSet(viewsets.ViewSet, generics.CreateAPIView):
+class HealthTrackingViewSet(viewsets.ViewSet, generics.CreateAPIView, generics.DestroyAPIView):
     queryset = HealthTracking.objects.all()
     serializer_class = HealthTrackingSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrExpertConnected]
@@ -395,7 +393,12 @@ class HealthTrackingViewSet(viewsets.ViewSet, generics.CreateAPIView):
         return HealthTracking.objects.none()
 
     def list(self, request):
+        field = request.query_params.get("field")
         queryset = self.get_queryset()
+
+        if field in ['bmi', 'steps', 'heart_rate', 'water_intake']:
+            queryset = queryset.exclude(**{f"{field}__isnull": True})
+
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
@@ -720,6 +723,7 @@ class MealViewSet(viewsets.ViewSet, generics.CreateAPIView):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
+
 # ------MealPlanViewSet------
 class MealPlanViewSet(viewsets.ViewSet, generics.CreateAPIView):
     serializer_class = MealPlanSerializer
@@ -1010,21 +1014,19 @@ class ReportViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_user_regular_profile(self, user):
-        # Lấy RegularUser tương ứng với User
         return getattr(user, 'regular_profile', None)
 
     def is_expert_connected_to_user(self, expert_user, regular_user):
-        # Kiểm tra expert có kết nối với regular_user không
         if not hasattr(expert_user, 'expert_profile'):
             return False
         expert = expert_user.expert_profile
-        # Chỉ cần check xem regular_user có kết nối với expert ở trường connected_trainer hoặc connected_nutritionist
-        return (regular_user.connected_trainer == expert or regular_user.connected_nutritionist == expert)
+        return (regular_user.connected_trainer == expert or
+                regular_user.connected_nutritionist == expert)
 
     def _filter_time_range(self, queryset, period):
         today = now().date()
         if period == 'week':
-            start_date = today - timedelta(days=today.weekday())  # bắt đầu tuần (Thứ 2)
+            start_date = today - timedelta(days=today.weekday())
         elif period == 'month':
             start_date = today.replace(day=1)
         elif period == 'year':
@@ -1036,45 +1038,64 @@ class ReportViewSet(viewsets.ViewSet):
             queryset = queryset.filter(date__gte=start_date, date__lte=today)
         return queryset
 
-    @action(detail=False, methods=['get'], url_path='user-progress')
-    def user_progress(self, request):
+    @action(detail=False, methods=['get'], url_path='user-health-progress')
+    def user_health_progress(self, request):
         user = request.user
         regular_profile = self.get_user_regular_profile(user)
         if not regular_profile:
             return Response({"detail": "User không có profile theo dõi"}, status=status.HTTP_400_BAD_REQUEST)
 
-        period = request.query_params.get('period', 'week')  # default week
-
+        period = request.query_params.get('period', 'week')
         health_tracking_qs = regular_profile.health_tracking.all()
         health_tracking_qs = self._filter_time_range(health_tracking_qs, period)
 
-        # Tính các số liệu tổng theo khoảng thời gian
         total_steps = health_tracking_qs.aggregate(total_steps=Sum('steps'))['total_steps'] or 0
         avg_heart_rate = health_tracking_qs.aggregate(avg_hr=Avg('heart_rate'))['avg_hr'] or 0
         total_water = health_tracking_qs.aggregate(total_water=Sum('water_intake'))['total_water'] or 0
 
-        # Workout thời gian & calo tiêu thụ
-        workout_sessions = WorkoutSession.objects.filter(
-            workout_plan__user=regular_profile
-        )
-        workout_sessions = self._filter_time_range(workout_sessions, period)
-        total_duration = workout_sessions.aggregate(total_duration=Sum('duration'))['total_duration'] or 0
+        # Lấy BMI từ bản ghi mới nhất trong khoảng thời gian
+        latest_tracking = health_tracking_qs.order_by('-date').first()
+        bmi = None
+        if latest_tracking and latest_tracking.height and latest_tracking.weight:
+            height_m = latest_tracking.height / 100  # cm -> m
+            bmi = round(latest_tracking.weight / (height_m ** 2), 2)
 
+        return Response({
+            "steps": total_steps,
+            "avg_heart_rate": avg_heart_rate,
+            "water_intake": total_water,
+            "bmi": bmi
+        })
+
+    @action(detail=False, methods=['get'], url_path='user-workout-stats')
+    def user_workout_stats(self, request):
+        """
+        Người dùng xem thống kê luyện tập theo tuần/tháng
+        """
+        user = request.user
+        regular_profile = self.get_user_regular_profile(user)
+        if not regular_profile:
+            return Response({"detail": "User không có profile theo dõi"}, status=status.HTTP_400_BAD_REQUEST)
+
+        period = request.query_params.get('period', 'week')
+        if period not in ['week', 'month']:
+            return Response({"detail": "Chỉ cho phép tuần hoặc tháng cho thống kê luyện tập"}, status=status.HTTP_400_BAD_REQUEST)
+
+        workout_sessions = WorkoutSession.objects.filter(workout_plan__user=regular_profile)
+        workout_sessions = self._filter_time_range(workout_sessions, period)
+
+        total_duration = workout_sessions.aggregate(total_duration=Sum('duration'))['total_duration'] or 0
         total_calories = workout_sessions.aggregate(
             total_calories=Sum('workout__calories_burned')
         )['total_calories'] or 0
 
-        data = {
-            "steps": total_steps,
-            "avg_heart_rate": avg_heart_rate,
-            "water_intake": total_water,
+        return Response({
             "total_workout_duration": total_duration,
             "total_calories_burned": total_calories,
-        }
-        return Response(data)
+        })
 
-    @action(detail=False, methods=['get'], url_path='expert-client-progress')
-    def expert_client_progress(self, request):
+    @action(detail=False, methods=['get'], url_path='expert-client-health-progress')
+    def expert_client_health_progress(self, request):
         expert_user = request.user
         if not hasattr(expert_user, 'expert_profile'):
             return Response({"detail": "Bạn không phải chuyên gia"}, status=status.HTTP_403_FORBIDDEN)
@@ -1083,18 +1104,16 @@ class ReportViewSet(viewsets.ViewSet):
         if not client_id:
             return Response({"detail": "Thiếu client_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Lấy RegularUser client
         try:
             client_regular_user = RegularUser.objects.get(id=client_id)
         except RegularUser.DoesNotExist:
             return Response({"detail": "Client không tồn tại"}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check expert có kết nối với client hay không
         if not self.is_expert_connected_to_user(expert_user, client_regular_user):
-            return Response({"detail": "Bạn không được phép xem dữ liệu của client này"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": "Bạn không được phép xem dữ liệu của client này"},
+                            status=status.HTTP_403_FORBIDDEN)
 
-        period = request.query_params.get('period', 'week')  # default week
-
+        period = request.query_params.get('period', 'week')
         health_tracking_qs = client_regular_user.health_tracking.all()
         health_tracking_qs = self._filter_time_range(health_tracking_qs, period)
 
@@ -1102,20 +1121,15 @@ class ReportViewSet(viewsets.ViewSet):
         avg_heart_rate = health_tracking_qs.aggregate(avg_hr=Avg('heart_rate'))['avg_hr'] or 0
         total_water = health_tracking_qs.aggregate(total_water=Sum('water_intake'))['total_water'] or 0
 
-        workout_sessions = WorkoutSession.objects.filter(
-            workout_plan__user=client_regular_user
-        )
-        workout_sessions = self._filter_time_range(workout_sessions, period)
-        total_duration = workout_sessions.aggregate(total_duration=Sum('duration'))['total_duration'] or 0
-        total_calories = workout_sessions.aggregate(
-            total_calories=Sum('workout__calories_burned')
-        )['total_calories'] or 0
+        latest_tracking = health_tracking_qs.order_by('-date').first()
+        bmi = None
+        if latest_tracking and latest_tracking.height and latest_tracking.weight:
+            height_m = latest_tracking.height / 100
+            bmi = round(latest_tracking.weight / (height_m ** 2), 2)
 
-        data = {
+        return Response({
             "steps": total_steps,
             "avg_heart_rate": avg_heart_rate,
             "water_intake": total_water,
-            "total_workout_duration": total_duration,
-            "total_calories_burned": total_calories,
-        }
-        return Response(data)
+            "bmi": bmi
+        })

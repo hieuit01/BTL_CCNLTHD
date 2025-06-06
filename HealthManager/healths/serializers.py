@@ -370,10 +370,29 @@ class HealthJournalSerializer(serializers.ModelSerializer):
 
 # ------ReminderSerializer------
 class ReminderSerializer(serializers.ModelSerializer):
+    repeat_days = serializers.ListField(
+        child=serializers.ChoiceField(choices=[
+            ('mon', 'Thứ Hai'), ('tue', 'Thứ Ba'), ('wed', 'Thứ Tư'),
+            ('thu', 'Thứ Năm'), ('fri', 'Thứ Sáu'),
+            ('sat', 'Thứ Bảy'), ('sun', 'Chủ Nhật'),
+        ]),
+        allow_empty=True
+    )
+
     class Meta:
         model = Reminder
-        fields = ['id', 'user', 'reminder_type', 'message', 'send_at']
-        read_only_fields = ['id', 'user']
+        fields = ['id', 'message', 'remind_time', 'repeat_days', 'active']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if isinstance(instance.repeat_days, str):
+            data['repeat_days'] = instance.repeat_days.split(',') if instance.repeat_days else []
+        return data
+
+    def to_internal_value(self, data):
+        if isinstance(data.get('repeat_days'), list):
+            data['repeat_days'] = ','.join(data['repeat_days'])
+        return super().to_internal_value(data)
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user.regular_profile

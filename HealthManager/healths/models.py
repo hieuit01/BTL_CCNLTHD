@@ -283,7 +283,16 @@ class Reminder(BaseModel):
     user = models.ForeignKey(RegularUser, on_delete=models.CASCADE, related_name="reminders")
     reminder_type = models.CharField(max_length=20, choices=ReminderType.choices)
     message = models.CharField(max_length=255)
-    send_at = models.DateTimeField()
+    remind_time = models.TimeField()
+    repeat_days = models.CharField(
+        max_length=50,  # ví dụ: "mon,wed,fri"
+        default="",
+        blank=True,
+        help_text="CSV các ngày lặp lại: mon,tue,wed,..."
+    )
+
+    def get_repeat_day_list(self):
+        return self.repeat_days.split(',') if self.repeat_days else []
 
     def __str__(self):
         return f"{self.user} - {self.reminder_type}"
